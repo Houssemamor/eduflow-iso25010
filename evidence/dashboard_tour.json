@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-11-19T00:12:32",
+  "browser": "msedge.exe",
+  "cdp_endpoint": "http://127.0.0.1:9222",
+  "base_url": "http://127.0.0.1:5173",
+  "roles": {
+    "admin": {
+      "steps": [
+        {
+          "route": "/dashboard",
+          "assertion": "aggregate metrics",
+          "selector": "[data-testid^='metric-card-']",
+          "screenshot": "dashboard_tour_admin_0_dashboard.png"
+        },
+        {
+          "route": "/users",
+          "assertion": "user management",
+          "selector": "[data-testid='user-create']",
+          "screenshot": "dashboard_tour_admin_1_users.png"
+        },
+        {
+          "route": "/audit",
+          "assertion": "audit log",
+          "selector": "[data-testid='audit-filters']",
+          "screenshot": "dashboard_tour_admin_2_audit.png"
+        }
+      ],
+      "admin_nav_visible": true,
+      "page_errors": []
+    },
+    "formateur": {
+      "steps": [
+        {
+          "route": "/dashboard",
+          "assertion": "aggregate metrics",
+          "selector": "[data-testid^='metric-card-']",
+          "screenshot": "dashboard_tour_formateur_0_dashboard.png"
+        },
+        {
+          "route": "/courses",
+          "assertion": "own course list",
+          "selector": "[data-testid='courses-filters']",
+          "screenshot": "dashboard_tour_formateur_1_courses.png"
+        },
+        {
+          "route": "/enrollments",
+          "assertion": "enrollment validation",
+          "selector": "[data-testid='enrollments-filters']",
+          "screenshot": "dashboard_tour_formateur_2_enrollments.png"
+        }
+      ],
+      "admin_nav_visible": false,
+      "page_errors": []
+    },
+    "apprenant": {
+      "steps": [
+        {
+          "route": "/dashboard",
+          "assertion": "aggregate metrics",
+          "selector": "[data-testid^='metric-card-']",
+          "screenshot": "dashboard_tour_apprenant_0_dashboard.png"
+        },
+        {
+          "route": "/courses",
+          "assertion": "course catalogue",
+          "selector": "[data-testid='courses-filters']",
+          "screenshot": "dashboard_tour_apprenant_1_courses.png"
+        },
+        {
+          "route": "/enrollments",
+          "assertion": "own enrollments",
+          "selector": "[data-testid='enrollments-filters']",
+          "screenshot": "dashboard_tour_apprenant_2_enrollments.png"
+        }
+      ],
+      "admin_nav_visible": false,
+      "page_errors": []
+    }
+  }
+}
