@@ -6,7 +6,8 @@
   --color-surface: #ffffff;
   --color-surface-muted: #f8fafc;
   --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  /* Darkened from #64748b to satisfy WCAG AA 4.5:1 on muted surfaces. */
+  --color-text-muted: #5e6e84;
   --color-border: #e2e8f0;
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -881,6 +882,8 @@ textarea {
 code {
   padding: 0.05rem 0.3rem;
   background: #e2e8f0;
+  /* Darkened from muted text to meet WCAG AA 4.5:1 on the light code chip. */
+  color: #334155;
   border-radius: 3px;
   font-size: 0.8em;
 }
