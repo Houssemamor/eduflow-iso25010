@@ -100,6 +100,32 @@ raw evidence are in `evidence/charts/` and are embedded in the EN/FR PDF reports
   valid JWT, 3 seeded courses, dashboard metrics and audit entries; the frontend
   served HTTP 200.
 
+## Dashboard navigation simulation (Part II of the reports)
+
+A real installed browser is detected by `automation_engine.py` using this
+resolution order: `CHROME_PATH` override, Google Chrome (machine x86/x64 and
+per-user), Microsoft Edge (machine x64/x86 and per-user), then executables on
+PATH. On this host the resolved browser was **msedge.exe** at
+`%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe`.
+
+The browser is launched with CDP flags (`--remote-debugging-port=9222`,
+`--user-data-dir=<temp profile>`, `--no-first-run`,
+`--no-default-browser-check`, WebRTC privacy flags, `--start-maximized`) and
+driven through `connect_over_cdp` by `tests/e2e/test_dashboard_simulation.py`.
+Each of the three roles logs in and visits its own dashboard and role-specific
+windows:
+
+- **admin**: dashboard, users, audit log (admin-only navigation visible);
+- **formateur**: dashboard, courses, enrollments;
+- **apprenant**: dashboard, courses, enrollments (admin navigation absent).
+
+Every window is asserted by a stable `data-testid` and captured as a full-page
+screenshot. Evidence: `evidence/dashboard_tour.json` (trace, browser, zero page
+errors) and `evidence/dashboard_tour_<role>_<n>_<window>.png` (9 screenshots).
+All nine screenshots are reproduced in **Part II** of both EN and FR reports.
+The browser is not launched from an HTTP endpoint: that would expose remote
+process execution, so the harness runs locally only.
+
 ## Graphs
 
 - `evidence/charts/performance_p95.png` - p95 response time per endpoint with

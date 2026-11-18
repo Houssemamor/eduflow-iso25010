@@ -42,6 +42,7 @@ characteristics in section 6.
 | Smoke | Post-deployment checks on demo accounts and core endpoints | pytest | `tests/smoke/test_smoke.py` (5 tests) | evidence/api.xml |
 | Concurrency | Parallel double-submit cannot create duplicate enrollment | pytest + threads | `tests/reliability/test_concurrency.py` | evidence/api.xml |
 | Accessibility | Automated WCAG A/AA violation scan | axe-core via Playwright | `tests/e2e/test_accessibility.py` | evidence/axe.json |
+| Dashboard navigation simulation | Real-browser CDP tour of the three roles and their dashboards/windows | automation_engine.py + Playwright connect_over_cdp | `tests/e2e/test_dashboard_simulation.py` | evidence/dashboard_tour.json, evidence/dashboard_tour_*.png, Part II of both reports |
 | Frontend SCA | Known vulnerabilities in frontend dependencies | npm audit | `npm audit` | evidence/npm-audit.txt |
 
 ## Evidence file index
@@ -59,6 +60,8 @@ characteristics in section 6.
 | evidence/npm-audit.txt | npm audit | Frontend dependency CVE findings |
 | evidence/zap.html, evidence/zap.json | OWASP ZAP | Dynamic application security report |
 | evidence/axe.json | axe-core | Accessibility scan result |
+| evidence/dashboard_tour.json | CDP simulation | Browser, role windows, assertions, page errors |
+| evidence/dashboard_tour_*.png | CDP simulation | One screenshot per role and window |
 | evidence/coverage/index.html, evidence/coverage.xml | pytest-cov | Coverage reports |
 | evidence/charts/*.png | matplotlib | Charts embedded in the PDF reports |
 | evidence/docker-compose-config.txt | `docker compose config` | Resolved Compose configuration |

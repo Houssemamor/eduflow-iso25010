@@ -63,6 +63,9 @@ pytest --cov=app --cov-report=html:evidence/coverage --junitxml=evidence/api.xml
 # Requires the stack running; E2E_BASE_URL defaults to http://localhost:5173
 pytest tests/e2e -m e2e --junitxml=evidence/e2e.xml
 
+# Real-browser CDP simulation of the three role dashboards (Chrome/Edge, or CHROME_PATH)
+pytest tests/e2e/test_dashboard_simulation.py -m simulation -q
+
 # Static application security testing
 bandit -r app -f txt -o evidence/bandit.txt
 

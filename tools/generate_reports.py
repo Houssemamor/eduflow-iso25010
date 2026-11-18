@@ -207,6 +207,47 @@ CHART_CAPTIONS = [
 ]
 
 
+def simulation_groups() -> list[tuple[str, list[tuple[Path, str]]]]:
+    """Return screenshot groups per role from the real CDP simulation trace."""
+    trace_path = EVIDENCE / "dashboard_tour.json"
+    if not trace_path.is_file():
+        return []
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    groups = []
+    for role in ("admin", "formateur", "apprenant"):
+        role_data = trace.get("roles", {}).get(role)
+        if not role_data:
+            continue
+        items = []
+        for step in role_data["steps"]:
+            image = EVIDENCE / step["screenshot"]
+            if image.is_file():
+                caption = "%s - %s (route %s)" % (
+                    role, step["assertion"], step["route"]
+                )
+                items.append((image, caption))
+        if items:
+            groups.append((role, items))
+    return groups
+
+
+def simulation_metadata() -> list[tuple[str, str]]:
+    trace_path = EVIDENCE / "dashboard_tour.json"
+    if not trace_path.is_file():
+        return []
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    roles = trace.get("roles", {})
+    return [
+        ("Browser", trace.get("browser", "unknown")),
+        ("CDP endpoint", trace.get("cdp_endpoint", "unknown")),
+        ("Timestamp", trace.get("timestamp", "unknown")),
+        ("Roles simulated", ", ".join(roles.keys())),
+        ("Page errors", "0" if all(
+            not data.get("page_errors") for data in roles.values()
+        ) else "see dashboard_tour.json"),
+    ]
+
+
 # --- DOCX rendering ----------------------------------------------------------
 
 def add_blocks_docx(document: Document, blocks: list[tuple]) -> None:
@@ -260,6 +301,29 @@ def add_results_docx(document: Document) -> None:
             document.add_paragraph(caption)
 
 
+def add_simulation_docx(document: Document) -> None:
+    """Part II: one screenshot per role/window from the CDP simulation."""
+    groups = simulation_groups()
+    if not groups:
+        return
+    document.add_page_break()
+    document.add_heading("PART II - Simulated role navigation (browser CDP)", level=1)
+    metadata = simulation_metadata()
+    table = document.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+    table.rows[0].cells[0].text = "Run property"
+    table.rows[0].cells[1].text = "Value"
+    for key, value in metadata:
+        cells = table.add_row().cells
+        cells[0].text = key
+        cells[1].text = value
+    for role, items in groups:
+        document.add_heading("Role: %s" % role, level=2)
+        for image, caption in items:
+            document.add_picture(str(image), width=Inches(5.8))
+            document.add_paragraph(caption)
+
+
 def build_docx(path: Path, title: str, intro: str, blocks: list[tuple]) -> None:
     document = Document()
     document.add_heading(title, level=0)
@@ -267,6 +331,7 @@ def build_docx(path: Path, title: str, intro: str, blocks: list[tuple]) -> None:
     for block in blocks:
         add_blocks_docx(document, [block])
     add_results_docx(document)
+    add_simulation_docx(document)
     document.save(path)
     print("Word report written: %s" % path)
 
@@ -348,6 +413,31 @@ def build_pdf(path: Path, title: str, intro: str, blocks: list[tuple],
             story.append(Image(str(image_path), width=165 * mm, height=86 * mm))
             story.append(Paragraph(caption, styles["Body"]))
             story.append(Spacer(1, 4 * mm))
+
+    groups = simulation_groups()
+    if groups:
+        story.append(PageBreak())
+        story.append(Paragraph(
+            "PART II - Simulated role navigation (browser CDP)", styles["Head"]
+        ))
+        metadata = simulation_metadata()
+        meta_table = Table([["Run property", "Value"]] + [list(item) for item in metadata],
+                           colWidths=[45 * mm, 122 * mm], repeatRows=1, hAlign="LEFT")
+        meta_table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#94a3b8")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 4 * mm))
+        for role, items in groups:
+            story.append(Paragraph("Role: %s" % role, styles["Head"]))
+            for image, caption in items:
+                story.append(Image(str(image), width=150 * mm, height=80 * mm))
+                story.append(Paragraph(caption.replace("&", "&amp;"), styles["Body"]))
+                story.append(Spacer(1, 3 * mm))
 
     if include_appendix:
         story.append(PageBreak())
