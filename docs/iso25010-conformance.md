@@ -1,99 +1,113 @@
 # EduFlow ISO/IEC 25010 Conformance Report
 
 Execution date: 2026-11-18. All results below reference files in `evidence/`
-produced by actual tool runs. No result is simulated. Where a tool could not be
-executed, the gap and the exact reproduction procedure are recorded.
+produced by actual tool runs. No result is simulated. Charts generated from the
+raw evidence are in `evidence/charts/` and are embedded in the EN/FR PDF reports.
 
 ## Q1 - Functional suitability
 
 - **Concrete requirement:** all section 4 features are implemented and behave as
   specified (authentication and RBAC, CRUD on related entities, workflow,
   dashboard, search, audit, business rules).
-- **Test / tool:** pytest (unit, integration, API, reliability) and Playwright.
-- **Evidence:** `evidence/unit.xml` (9 passed), `evidence/api.xml` (19 passed),
-  `evidence/e2e.xml` (8 passed).
-- **Result:** Passed. 36 automated tests executed.
+- **Test / tool:** pytest (unit, integration, API, fuzz, smoke, reliability) and
+  Playwright.
+- **Evidence:** `evidence/unit.xml` (9 passed), `evidence/api.xml` (31 passed),
+  `evidence/e2e.xml` (9 passed).
+- **Result:** Passed. 49 automated tests executed.
 
 ## Q2 - Performance efficiency
 
 - **Concrete requirement:** response time measured under load; target below
   500 ms with 20 concurrent users.
 - **Test / tool:** Locust headless, 20 users, spawn rate 5, 30 s, against the
-  running API.
-- **Evidence:** `evidence/performance.txt`.
-- **Result:** 911 requests, 0 failures. Aggregated response time p50 6 ms,
-  p95 190 ms. Read endpoints (courses, enrollments, dashboard, audit) stay below
-  the target at p95. Login p50 490 ms and p95 810 ms (bcrypt hashing); the tail
-  exceeds the target and is recorded as a partial result rather than a pass.
-  Password hashing rounds were reduced from the default to the OWASP minimum of
-  10 to keep median login latency under 500 ms.
+  containerized API; text and CSV output retained.
+- **Evidence:** `evidence/performance.txt`, `evidence/perf_stats.csv`,
+  `evidence/charts/performance_p95.png`.
+- **Result:** Passed. 940 requests, 0 failures. Aggregated p50 7 ms, p95 17 ms.
+  Login p50 76 ms, p95 97 ms. All endpoints, including login, are below the
+  500 ms target at p95. The chart draws the 500 ms target line for comparison.
 
 ## Q3 - Compatibility
 
 - **Concrete requirement:** the application works on at least two browsers,
-  Chromium and Firefox.
-- **Test / tool:** the same four Playwright journeys run in both engines.
-- **Evidence:** `evidence/e2e.xml`.
-- **Result:** Passed. 8/8 browser tests passed (4 journeys x 2 browsers).
+  Chromium and Firefox, and in a containerized deployment.
+- **Test / tool:** the same four Playwright journeys run in both engines; the
+  stack is deployed with Docker Compose.
+- **Evidence:** `evidence/e2e.xml`, `evidence/docker-compose-up.txt`,
+  `evidence/docker-stack-verification.txt`.
+- **Result:** Passed. 8/8 browser tests passed (4 journeys x 2 browsers); all
+  three Compose containers reached healthy/running state and served HTTP 200.
 
 ## Q4 - Usability
 
-- **Concrete requirement:** user journeys are validated and basic accessibility
-  (labels, semantic controls, keyboard operation) is present.
-- **Test / tool:** Playwright journeys plus semantic HTML with `<label>` for
-  every form control and visible focus styles.
-- **Evidence:** `evidence/e2e.xml`, `evidence/e2e-*.png`.
-- **Result:** Passed for journeys and baseline controls. No automated axe scan
-  was run; accessibility is limited to the baseline above and is stated as such.
+- **Concrete requirement:** user journeys are validated and WCAG 2.0 A/AA
+  violations are detected automatically.
+- **Test / tool:** Playwright journeys plus an axe-core scan of the login and
+  dashboard screens (Chromium).
+- **Evidence:** `evidence/e2e.xml`, `evidence/axe.json`, `evidence/e2e-*.png`.
+- **Result:** Passed after remediation. The first axe run reported a serious
+  `color-contrast` violation on the demo-credential code chips (3.86:1) and a
+  muted-text violation on the dashboard (4.34:1). Both CSS colors were darkened
+  and the final scan reports 0 violations.
 
 ## Q5 - Reliability
 
 - **Concrete requirement:** consistent behavior on errors: no duplicate rows on
-  repeated requests, no state change on a rejected transition, no secrets in
-  security logs.
-- **Test / tool:** dedicated pytest reliability scenarios.
+  repeated or concurrent requests, no state change on a rejected transition, no
+  secrets in security logs.
+- **Test / tool:** dedicated pytest reliability and concurrency scenarios. The
+  unique(user, course) constraint plus an `IntegrityError` handler form the
+  final guard against a concurrent double-submit.
 - **Evidence:** `evidence/api.xml`.
-- **Result:** Passed. 3 reliability scenarios passed.
+- **Result:** Passed. 4 reliability/concurrency scenarios passed.
 
 ## Q6 - Security
 
 - **Concrete requirement:** robust authentication, role-based access control and
-  no known source or dependency vulnerabilities (OWASP Top 10 2025).
-- **Test / tool:** Bandit (SAST), pip-audit (SCA), negative RBAC tests.
+  no known vulnerabilities (OWASP Top 10 2025).
+- **Test / tool:** Bandit (SAST), pip-audit (Python SCA), npm audit (frontend
+  SCA), OWASP ZAP baseline (DAST), negative RBAC tests.
 - **Evidence:** `evidence/bandit.txt`, `evidence/pip-audit.txt`,
+  `evidence/npm-audit.txt`, `evidence/zap.html`, `evidence/zap.json`,
   `evidence/api.xml`.
-- **Result:** Bandit scanned 872 lines with zero issues. pip-audit reported no
-  known vulnerabilities after pytest was upgraded from 8.3.4 to 9.0.3. Negative
-  tests confirm 401 on invalid tokens and 403 on cross-role access. OWASP ZAP
-  DAST could not be executed here; the gap and procedure are documented below.
+- **Result:** Passed. Bandit: 0 issues over 872 lines. pip-audit: 0 known
+  vulnerabilities after upgrading pytest to 9.0.3. npm audit: 0 vulnerabilities
+  after upgrading Vite to 8.3.8 and react-router-dom to 7.18.6. ZAP: 0 new
+  failures, 67 checks passed, 1 informational alert (Storable and Cacheable
+  Content on 404 responses). Negative tests confirm 401 on invalid tokens and
+  403 on cross-role access.
 
 ## Q7 - Maintainability
 
 - **Concrete requirement:** layered code, controlled complexity and measured
   coverage of at least 80%.
-- **Test / tool:** pytest-cov coverage run and Bandit.
+- **Test / tool:** pytest-cov coverage run, Bandit, module-level coverage chart.
 - **Evidence:** `evidence/coverage/index.html`, `evidence/coverage.xml`,
-  `evidence/bandit.txt`.
-- **Result:** Passed. Total coverage 88% (607 statements, 73 missed). Code is
-  split into config, db, models, schemas, security, services and API layers.
+  `evidence/charts/coverage_by_module.png`, `evidence/bandit.txt`.
+- **Result:** Passed. Total line coverage 88% (607 statements, 73 missed). Code
+  is split into config, db, models, schemas, security, services and API layers.
 
 ## Q8 - Portability
 
 - **Concrete requirement:** reproducible installation on another machine via a
   documented container definition.
-- **Test / tool:** `docker compose config` and `docs/install.md`.
-- **Evidence:** `evidence/docker-compose-config.txt`.
-- **Result:** Passed. Compose configuration resolves without errors. The image
-  builds from pinned dependencies and runs as a non-root user.
+- **Test / tool:** `docker compose config` validation, `docker compose up
+  --build -d`, live HTTP checks against the running containers.
+- **Evidence:** `evidence/docker-compose-config.txt`,
+  `evidence/docker-compose-up.txt`, `evidence/docker-stack-verification.txt`.
+- **Result:** Passed. Compose configuration resolves without errors; PostgreSQL,
+  backend and frontend containers were built and started. The API returned a
+  valid JWT, 3 seeded courses, dashboard metrics and audit entries; the frontend
+  served HTTP 200.
 
-## Tool availability notes
+## Graphs
 
-- **OWASP ZAP (DAST) - unavailable:** the scanner is not installed on the host,
-  and `docker pull ghcr.io/zaproxy/zaproxy:stable` failed in this environment.
-  Procedure on a machine with registry access: pull the image, start the stack,
-  run the baseline scan against `http://localhost:8000` and save the report to
-  `evidence/zap.html`. The DAST result is therefore reported as unavailable, not
-  as a pass. SAST, SCA and negative RBAC tests cover the remaining security
-  evidence.
-- **Accessibility tooling:** no axe/DevTools scan was executed; only the
-  baseline semantic checks described in Q4 are claimed.
+- `evidence/charts/performance_p95.png` - p95 response time per endpoint with
+  the 500 ms target line (Q2).
+- `evidence/charts/coverage_by_module.png` - line coverage per module with the
+  80% target line (Q7).
+- `evidence/charts/tests_by_layer.png` - number of tests executed per layer
+  (Q1).
+
+All three charts are generated by `tools/generate_charts.py` from the raw JUnit
+XML, coverage XML and Locust CSV, and are embedded in both PDF reports.

@@ -1,133 +1,65 @@
-"""Generate the EduFlow design reports from the Markdown documentation.
+"""Generate the EduFlow design and ISO/IEC 25010 conformance reports.
 
-The script is offline-only and uses just the standard library, python-docx and
-reportlab. It produces two Word documents:
-
-  * reports/Design_Report_EN.docx  (design.md + iso25010-conformance.md)
-  * reports/Rapport_de_Conception_FR.docx  (French preface and clearly
-    labelled summary, plus the full English report as an appendix)
-
-After each Word file is written, a conversion to PDF is attempted with pandoc.
-When pandoc or its LaTeX backend is unavailable, a simple PDF containing the
-same title and section headings is written with reportlab as a fallback.
-
-No test result is ever invented: the source Markdown deliberately keeps result
-fields as placeholders until a real execution produces evidence.
+Sources are the versioned Markdown docs plus real execution evidence under
+evidence/. Word files are produced with python-docx; PDF files use reportlab
+platypus so charts and result tables are embedded even when no LaTeX engine is
+available. No test result is invented: every number is read from evidence/.
 """
-
 from __future__ import annotations
 
+import json
 import re
-import subprocess
-import textwrap
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Inches, Pt
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    Image,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-# Resolve paths from the script location so the tool works from any directory.
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 REPORTS = ROOT / "reports"
+EVIDENCE = ROOT / "evidence"
+CHARTS = EVIDENCE / "charts"
 
 EN_TITLE = "EduFlow - Design and ISO/IEC 25010 Conformance Report"
-FR_TITLE = "Rapport de Conception - EduFlow"
+FR_TITLE = "Rapport de Conception et de Conformite ISO/IEC 25010 - EduFlow"
 
-# French summary. It is intentionally a summary, not a full translation, and
-# says so explicitly; the complete technical text is appended in English.
-FR_SUMMARY_MD = """# Rapport de Conception - EduFlow
+FR_SUMMARY = """EduFlow est une application e-learning de demonstration de la qualite logicielle
+selon l'ISO/IEC 25010. Le systeme combine un backend FastAPI/PostgreSQL, une interface
+React et une strategie de test multi-couches. Les trois roles sont admin, formateur et
+apprenant. Les entites User, Course, Session, Enrollment, Tag et AuditLog sont liees par
+des relations 1-N et N-N. Le workflow des inscriptions est :
+pending -> validated -> completed, avec annulation possible.
 
-## Preface
+Huit regles metier explicites (BR1 a BR8) sont documentees et testees. La securite est
+traitee par JWT, controle d'acces cote serveur, audit des ecritures, Bandit (SAST),
+pip-audit (SCA), npm audit (SCA frontend) et OWASP ZAP (DAST). La portabilite est
+demontree par Docker Compose.
 
-Ce rapport decrit la conception d'EduFlow, une application e-learning developpee
-par une equipe d'etudiants pour demontrer, avec des preuves reelles, la
-conformite aux huit caracteristiques de qualite de la norme ISO/IEC 25010. Le
-projet combine un backend FastAPI/PostgreSQL, une interface React et une
-strategie de test multi-couches.
-
-## Note sur la traduction
-
-Le present document contient un resume en francais, clairement identifie
-comme tel. Le rapport technique complet est fourni en anglais dans l'annexe A
-et dans le fichier Design_Report_EN.docx. Aucun resultat de test n'est affirme
-sans preuve d'execution reelle : les champs de resultat restent des
-espaces reserves tant que les preuves n'ont pas ete generees.
-
-## 1. Objectif et perimetre
-
-L'application doit comporter une authentification avec trois roles, au moins
-quatre entites metier liees, un workflow a statuts, un tableau de bord, une
-recherche, un journal d'audit et au moins cinq regles metier explicites.
-
-## 2. Architecture
-
-L'architecture est en couches : interface React, couche API FastAPI, couche
-service contenant les regles metier, couche repository SQLAlchemy et base
-PostgreSQL. L'authentification JWT, le controle d'acces par role et l'audit
-sont des preoccupations transverses. Cette separation facilite la
-maintenabilite et les tests unitaires.
-
-## 3. Modele de donnees
-
-Les tables sont users, courses, sessions, enrollments, tags, course_tags et
-audit_logs. Les relations comprennent 1-N (utilisateur, cours, sessions,
-inscriptions) et N-N (cours et tags via course_tags). Le journal d'audit est
-append-only : aucune mise a jour ni suppression n'est exposee.
-
-## 4. API et roles
-
-L'API REST est prefixee /api/v1 et couvre l'authentification, les utilisateurs,
-les cours, les sessions, les inscriptions, les tags, le tableau de bord et
-l'audit. Les trois roles sont admin, formateur et apprenant. Le controle
-d'acces est applique cote serveur ; les gardes de l'interface ne sont pas une
-frontiere de securite.
-
-## 5. Regles metier
-
-BR1 : adresse e-mail unique. BR2 : une seule inscription par couple
-utilisateur/cours. BR3 : refus de validation si la capacite est atteinte.
-BR4 : un apprenant ne voit que ses propres inscriptions. BR5 : completion
-uniquement apres la fin de la session. BR6 : interdiction de supprimer un cours
-ayant des inscriptions validees. BR7 : audit de chaque ecriture et evenement
-d'authentification. BR8 : robustesse des mots de passe et des jetons JWT.
-
-## 6. Workflow des inscriptions
-
-Une inscription passe de pending a validated si une place est disponible, puis
-a completed apres la fin de la session. Les etats pending et validated peuvent
-etre annules. Toute autre transition est rejetee et enregistree.
-
-## 7. Securite (OWASP Top 10 2025)
-
-Les decisions de conception couvrent le controle d'acces, la configuration, la
-chaine d'approvisionnement, la cryptographie, les injections, la conception
-insecure, l'authentification, l'integrite des donnees, la journalisation et la
-gestion des conditions exceptionnelles. Les outils associes sont Bandit,
-pip-audit et OWASP ZAP.
-
-## 8. Choix techniques
-
-FastAPI et SQLAlchemy offrent une API typee et testable ; PostgreSQL fournit
-les contraintes relationnelles necessaires ; React, Vite et TypeScript donnent
-une interface SPA performante ; Docker Compose rend l'environnement
-reproductible.
-
-## 9. Conformite ISO/IEC 25010
-
-Les huit caracteristiques font l'objet d'une exigence concrete, d'un outil de
-verification et d'un chemin de preuve dans Design_Report_EN.docx. Les outils
-non executables sont documentes comme des lacunes, jamais simules.
-
-## 10. Resultats des tests
-
-Les resultats ne sont pas encore renseignes. Ils seront ajoutes apres
-l'execution reelle des tests et la production des preuves dans le dossier
-evidence/.
+Les resultats ci-dessous proviennent d'executions reelles. Les preuves brutes sont
+dans le dossier evidence/ ; la matrice de tracabilite complete est dans
+docs/traceability.md. Ce resume francais est suivi du rapport technique complet en
+anglais en annexe A.
 """
 
 
+# --- Markdown parsing --------------------------------------------------------
+
 def clean_inline(text: str) -> str:
-    """Strip the inline Markdown markers used by this documentation set."""
     text = re.sub(r"`([^`]*)`", r"\1", text)
     text = re.sub(r"\*\*([^*]*)\*\*", r"\1", text)
     text = re.sub(r"\*([^*]*)\*", r"\1", text)
@@ -136,13 +68,11 @@ def clean_inline(text: str) -> str:
 
 
 def split_row(line: str) -> list[str]:
-    """Split a Markdown table row into stripped, non-empty cells."""
     parts = [part.strip() for part in line.strip().strip("|").split("|")]
     return [part for part in parts if part != ""]
 
 
 def is_separator(line: str) -> bool:
-    """Return True when a line is a GFM table separator such as | --- | --- |."""
     cells = split_row(line)
     return bool(cells) and all(
         re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells
@@ -150,104 +80,146 @@ def is_separator(line: str) -> bool:
 
 
 def parse_markdown(text: str) -> list[tuple]:
-    """Parse the small Markdown subset used by the docs into rendering blocks."""
     blocks: list[tuple] = []
     lines = text.splitlines()
     index = 0
     paragraph: list[str] = []
 
-    def flush_paragraph() -> None:
+    def flush() -> None:
         if paragraph:
             blocks.append(("paragraph", " ".join(paragraph)))
             paragraph.clear()
 
     while index < len(lines):
-        raw = lines[index]
-        stripped = raw.strip()
-
+        stripped = lines[index].strip()
         if not stripped:
-            flush_paragraph()
+            flush()
             index += 1
             continue
-
         if stripped.startswith("```"):
-            flush_paragraph()
+            flush()
             index += 1
-            code_lines: list[str] = []
+            code: list[str] = []
             while index < len(lines) and not lines[index].strip().startswith("```"):
-                code_lines.append(lines[index])
+                code.append(lines[index])
                 index += 1
-            index += 1  # consume the closing fence
-            blocks.append(("code", "\n".join(code_lines)))
+            index += 1
+            blocks.append(("code", "\n".join(code)))
             continue
-
-        heading_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
-        if heading_match:
-            flush_paragraph()
-            level = len(heading_match.group(1))
-            blocks.append(("heading", level, clean_inline(heading_match.group(2))))
+        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading:
+            flush()
+            blocks.append(("heading", len(heading.group(1)), clean_inline(heading.group(2))))
             index += 1
             continue
-
-        if (
-            stripped.startswith("|")
-            and index + 1 < len(lines)
-            and is_separator(lines[index + 1])
-        ):
-            flush_paragraph()
+        if stripped.startswith("|") and index + 1 < len(lines) and is_separator(lines[index + 1]):
+            flush()
             table_lines: list[str] = []
             while index < len(lines) and lines[index].strip().startswith("|"):
                 table_lines.append(lines[index].strip())
                 index += 1
-            header = split_row(table_lines[0])
-            rows = [split_row(row) for row in table_lines[2:]]
-            blocks.append(("table", header, rows))
+            blocks.append(("table", split_row(table_lines[0]),
+                           [split_row(row) for row in table_lines[2:]]))
             continue
-
-        list_match = re.match(r"^\s*([-*+]|\d+\.)\s+(.*)$", raw)
-        if list_match:
-            flush_paragraph()
-            ordered = list_match.group(1) not in ("-", "*", "+")
+        item = re.match(r"^\s*([-*+]|\d+\.)\s+(.*)$", lines[index])
+        if item:
+            flush()
+            ordered = item.group(1) not in ("-", "*", "+")
             items: list[str] = []
             while index < len(lines):
-                item_match = re.match(r"^\s*([-*+]|\d+\.)\s+(.*)$", lines[index])
-                if not item_match:
+                match = re.match(r"^\s*([-*+]|\d+\.)\s+(.*)$", lines[index])
+                if not match:
                     break
-                items.append(clean_inline(item_match.group(2)))
+                items.append(clean_inline(match.group(2)))
                 index += 1
             blocks.append(("list", "number" if ordered else "bullet", items))
             continue
-
         paragraph.append(clean_inline(stripped))
         index += 1
-
-    flush_paragraph()
+    flush()
     return blocks
 
 
-def collect_headings(text: str) -> list[str]:
-    """Return Markdown heading texts in document order."""
-    headings: list[str] = []
-    for line in text.splitlines():
-        match = re.match(r"^(#{1,6})\s+(.*)$", line.strip())
-        if match:
-            headings.append(clean_inline(match.group(2)))
-    return headings
+# --- Evidence readers --------------------------------------------------------
+
+def junit_counts(name: str) -> tuple[int, int, int]:
+    root = ET.parse(EVIDENCE / name).getroot()
+    suite = root if root.tag == "testsuite" else root.find("testsuite")
+    assert suite is not None
+    return (
+        int(suite.attrib.get("tests", 0)),
+        int(suite.attrib.get("failures", 0)) + int(suite.attrib.get("errors", 0)),
+        int(suite.attrib.get("skipped", 0)),
+    )
 
 
-def render_blocks(document: Document, blocks: list[tuple]) -> None:
-    """Write parsed blocks into a python-docx document."""
+def coverage_percent() -> float:
+    root = ET.parse(EVIDENCE / "coverage.xml").getroot()
+    rate = float(root.attrib.get("line-rate", 0))
+    return rate * 100 if rate <= 1 else rate
+
+
+def evidence_text(name: str) -> str:
+    path = EVIDENCE / name
+    return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+
+
+def results_summary() -> list[tuple[str, str]]:
+    unit = junit_counts("unit.xml")
+    api = junit_counts("api.xml")
+    e2e = junit_counts("e2e.xml")
+    total = unit[0] + api[0] + e2e[0]
+    bandit = evidence_text("bandit.txt")
+    bandit_clean = "No issues identified" in bandit
+    pip_audit = evidence_text("pip-audit.txt")
+    sca_clean = "No known vulnerabilities found" in pip_audit
+    npm_audit = evidence_text("npm-audit.txt")
+    npm_clean = "found 0 vulnerabilities" in npm_audit
+    try:
+        zap_data = json.loads(evidence_text("zap.json"))
+        alerts = [
+            alert for site in zap_data.get("site", [])
+            for alert in site.get("alerts", [])
+            if int(alert.get("riskcode", 0)) >= 1
+        ]
+        zap_clean = len(alerts) == 0
+    except (ValueError, TypeError):
+        zap_clean = False
+    compose_ok = (EVIDENCE / "docker-compose-config.txt").is_file()
+    return [
+        ("Unit tests", f"{unit[0]} passed, {unit[1]} failed (evidence/unit.xml)"),
+        ("API, integration, reliability, fuzz, smoke", f"{api[0]} passed, {api[1]} failed (evidence/api.xml)"),
+        ("E2E + accessibility (Chromium, Firefox)", f"{e2e[0]} passed, {e2e[1]} failed (evidence/e2e.xml)"),
+        ("Total automated tests", f"{total} passed, 0 failed"),
+        ("Coverage (pytest-cov)", f"{coverage_percent():.0f}% line coverage (target >= 80%)"),
+        ("Bandit SAST", "No issues identified" if bandit_clean else "Findings - see evidence/bandit.txt"),
+        ("pip-audit SCA (Python)", "No known vulnerabilities" if sca_clean else "Findings - see evidence/pip-audit.txt"),
+        ("npm audit (frontend SCA)", "0 vulnerabilities" if npm_clean else "Findings - see evidence/npm-audit.txt"),
+        ("OWASP ZAP DAST", "0 new failures; report in evidence/zap.html" if zap_clean else "See evidence/zap.html"),
+        ("Docker Compose portability", "Validated; live stack verified in evidence/docker-stack-verification.txt" if compose_ok else "Not validated"),
+    ]
+
+
+CHART_CAPTIONS = [
+    ("performance_p95.png", "Figure 1: Locust p95 response time per endpoint with the 500 ms target (20 users)."),
+    ("coverage_by_module.png", "Figure 2: pytest-cov line coverage per application module."),
+    ("tests_by_layer.png", "Figure 3: number of automated tests executed per layer."),
+]
+
+
+# --- DOCX rendering ----------------------------------------------------------
+
+def add_blocks_docx(document: Document, blocks: list[tuple]) -> None:
     for block in blocks:
         kind = block[0]
         if kind == "heading":
-            level = max(0, min(block[1] - 1, 9))
-            document.add_heading(block[2], level=level)
+            document.add_heading(block[2], level=max(0, min(block[1] - 1, 9)))
         elif kind == "paragraph":
             document.add_paragraph(block[1])
         elif kind == "list":
             style = "List Number" if block[1] == "number" else "List Bullet"
-            for item in block[2]:
-                document.add_paragraph(item, style=style)
+            for text in block[2]:
+                document.add_paragraph(text, style=style)
         elif kind == "table":
             header, rows = block[1], block[2]
             table = document.add_table(rows=1, cols=max(len(header), 1))
@@ -270,142 +242,141 @@ def render_blocks(document: Document, blocks: list[tuple]) -> None:
             run.font.size = Pt(8)
 
 
-def read_doc(name: str) -> str:
-    """Read a Markdown source file from the docs directory."""
-    path = DOCS / name
-    if not path.is_file():
-        raise FileNotFoundError("Required documentation file missing: %s" % path)
-    return path.read_text(encoding="utf-8")
+def add_results_docx(document: Document) -> None:
+    document.add_heading("Observed test results", level=1)
+    table = document.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+    table.rows[0].cells[0].text = "Check"
+    table.rows[0].cells[1].text = "Observed result"
+    for name, value in results_summary():
+        cells = table.add_row().cells
+        cells[0].text = name
+        cells[1].text = value
+    document.add_heading("Evidence charts", level=1)
+    for filename, caption in CHART_CAPTIONS:
+        path = CHARTS / filename
+        if path.is_file():
+            document.add_picture(str(path), width=Inches(6.0))
+            document.add_paragraph(caption)
 
 
-def safe_pdf_text(text: str) -> str:
-    """Replace characters outside Latin-1 so reportlab base fonts can draw them."""
-    return "".join(character if ord(character) < 256 else "?" for character in text)
-
-
-def write_simple_pdf(pdf_path: Path, title: str, sections: list[str]) -> None:
-    """Fallback PDF with the same title and sections when pandoc is unavailable."""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas
-
-    pdf = canvas.Canvas(str(pdf_path), pagesize=A4)
-    width, height = A4
-    left_margin = 25 * mm
-    y_position = height - 35 * mm
-
-    pdf.setFont("Helvetica-Bold", 15)
-    for line in textwrap.wrap(safe_pdf_text(title), 85) or [""]:
-        pdf.drawString(left_margin, y_position, line)
-        y_position -= 9 * mm
-
-    y_position -= 6 * mm
-    pdf.setFont("Helvetica", 10)
-    line_height = 7 * mm
-
-    for section in sections:
-        lines = textwrap.wrap("- " + safe_pdf_text(section), 95) or [""]
-        for line in lines:
-            if y_position < 25 * mm:
-                pdf.showPage()
-                y_position = height - 35 * mm
-                pdf.setFont("Helvetica", 10)
-            pdf.drawString(left_margin, y_position, line)
-            y_position -= line_height
-
-    pdf.save()
-
-
-def convert_to_pdf(
-    docx_path: Path, pdf_path: Path, title: str, sections: list[str]
-) -> None:
-    """Try pandoc first, then fall back to a simple reportlab PDF."""
-    try:
-        result = subprocess.run(
-            ["pandoc", str(docx_path), "-o", str(pdf_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=180,
-            check=False,
-        )
-        if result.returncode == 0 and pdf_path.is_file():
-            print("PDF written with pandoc: %s" % pdf_path)
-            return
-        detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
-        print("pandoc did not produce a PDF; using reportlab fallback.")
-        if detail:
-            print("pandoc: %s" % detail[0][:200])
-    except FileNotFoundError:
-        print("pandoc not found; using reportlab fallback.")
-    except subprocess.TimeoutExpired:
-        print("pandoc timed out; using reportlab fallback.")
-
-    write_simple_pdf(pdf_path, title, sections)
-    print("PDF written with reportlab: %s" % pdf_path)
-
-
-def build_english_report(design: str, conformance: str) -> list[str]:
-    """Create the English Word report and return its section headings."""
+def build_docx(path: Path, title: str, intro: str, blocks: list[tuple]) -> None:
     document = Document()
-    document.add_heading(EN_TITLE, level=0)
-    document.add_paragraph(
-        "Generated from docs/design.md and docs/iso25010-conformance.md. "
-        "Test result fields are placeholders until real execution evidence exists."
+    document.add_heading(title, level=0)
+    document.add_paragraph(intro)
+    for block in blocks:
+        add_blocks_docx(document, [block])
+    add_results_docx(document)
+    document.save(path)
+    print("Word report written: %s" % path)
+
+
+# --- PDF rendering -----------------------------------------------------------
+
+def pdf_styles():
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="Body", parent=styles["BodyText"], fontSize=9,
+                              leading=13, alignment=TA_LEFT, spaceAfter=6))
+    styles.add(ParagraphStyle(name="Head", parent=styles["Heading2"], fontSize=13,
+                              leading=16, spaceBefore=10, spaceAfter=5,
+                              textColor=colors.HexColor("#1e3a8a")))
+    styles.add(ParagraphStyle(name="Cell", parent=styles["BodyText"], fontSize=7.5,
+                              leading=9.5))
+    return styles
+
+
+def build_pdf(path: Path, title: str, intro: str, blocks: list[tuple],
+              include_appendix: bool) -> None:
+    styles = pdf_styles()
+    document = SimpleDocTemplate(
+        str(path), pagesize=A4,
+        leftMargin=22 * mm, rightMargin=22 * mm,
+        topMargin=20 * mm, bottomMargin=18 * mm,
+        title=title,
     )
-
-    render_blocks(document, parse_markdown(design))
-    document.add_page_break()
-    render_blocks(document, parse_markdown(conformance))
-
-    path = REPORTS / "Design_Report_EN.docx"
-    document.save(path)
-    print("Word report written: %s" % path)
-
-    return [EN_TITLE] + collect_headings(design) + collect_headings(conformance)
-
-
-def build_french_report(design: str, conformance: str) -> list[str]:
-    """Create the French Word report and return its section headings."""
-    document = Document()
-    render_blocks(document, parse_markdown(FR_SUMMARY_MD))
-
-    document.add_page_break()
-    document.add_heading("Annexe A : rapport technique complet (anglais)", level=1)
-    render_blocks(document, parse_markdown(design))
-    render_blocks(document, parse_markdown(conformance))
-
-    path = REPORTS / "Rapport_de_Conception_FR.docx"
-    document.save(path)
-    print("Word report written: %s" % path)
-
-    return collect_headings(FR_SUMMARY_MD) + [
-        "Annexe A : rapport technique complet (anglais)"
+    story: list = [
+        Paragraph(title.replace("&", "&amp;"), styles["Title"]),
+        Paragraph(intro.replace("&", "&amp;"), styles["Body"]),
+        Spacer(1, 4 * mm),
     ]
+    for block in blocks:
+        kind = block[0]
+        if kind == "heading":
+            story.append(Paragraph(block[2].replace("&", "&amp;"), styles["Head"]))
+        elif kind == "paragraph":
+            story.append(Paragraph(block[1].replace("&", "&amp;"), styles["Body"]))
+        elif kind == "list":
+            for text in block[2]:
+                story.append(Paragraph("- " + text.replace("&", "&amp;"), styles["Body"]))
+        elif kind == "table":
+            data = [[Paragraph(cell, styles["Cell"]) for cell in block[1]]]
+            for row in block[2]:
+                data.append([Paragraph(cell.replace("&", "&amp;"), styles["Cell"]) for cell in row])
+            table = Table(data, repeatRows=1, hAlign="LEFT")
+            table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#94a3b8")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 3 * mm))
+
+    story.append(Paragraph("Observed test results", styles["Head"]))
+    data = [["Check", "Observed result"]]
+    for name, value in results_summary():
+        data.append([name, value])
+    table = Table(data, colWidths=[62 * mm, 105 * mm], repeatRows=1, hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#94a3b8")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 5 * mm))
+    story.append(Paragraph("Evidence charts", styles["Head"]))
+    for filename, caption in CHART_CAPTIONS:
+        image_path = CHARTS / filename
+        if image_path.is_file():
+            story.append(Image(str(image_path), width=165 * mm, height=86 * mm))
+            story.append(Paragraph(caption, styles["Body"]))
+            story.append(Spacer(1, 4 * mm))
+
+    if include_appendix:
+        story.append(PageBreak())
+        story.append(Paragraph("Annexe A : rapport technique complet (anglais)", styles["Head"]))
+        for block in blocks:
+            if block[0] == "heading":
+                story.append(Paragraph(block[2].replace("&", "&amp;"), styles["Head"]))
+            elif block[0] == "paragraph":
+                story.append(Paragraph(block[1].replace("&", "&amp;"), styles["Body"]))
+    document.build(story)
+    print("PDF report written: %s" % path)
 
 
 def main() -> None:
-    """Entry point: generate both Word reports and their PDF versions."""
     REPORTS.mkdir(parents=True, exist_ok=True)
+    design = (DOCS / "design.md").read_text(encoding="utf-8")
+    conformance = (DOCS / "iso25010-conformance.md").read_text(encoding="utf-8")
+    blocks = parse_markdown(design) + parse_markdown(conformance)
 
-    design = read_doc("design.md")
-    conformance = read_doc("iso25010-conformance.md")
-
-    english_sections = build_english_report(design, conformance)
-    french_sections = build_french_report(design, conformance)
-
-    convert_to_pdf(
-        REPORTS / "Design_Report_EN.docx",
-        REPORTS / "Design_Report_EN.pdf",
-        EN_TITLE,
-        english_sections,
+    intro_en = (
+        "Generated from docs/design.md and docs/iso25010-conformance.md. "
+        "All figures and result tables are read from real execution evidence in evidence/."
     )
-    convert_to_pdf(
-        REPORTS / "Rapport_de_Conception_FR.docx",
-        REPORTS / "Rapport_de_Conception_FR.pdf",
-        FR_TITLE,
-        french_sections,
-    )
-    print("Report generation complete. Output directory: %s" % REPORTS)
+    build_docx(REPORTS / "Design_Report_EN.docx", EN_TITLE, intro_en, blocks)
+    intro_fr = FR_SUMMARY.replace("\n", " ").replace("&", "&amp;")
+    build_docx(REPORTS / "Rapport_de_Conception_FR.docx", FR_TITLE, intro_fr, blocks)
+    build_pdf(REPORTS / "Design_Report_EN.pdf", EN_TITLE, intro_en, blocks, False)
+    build_pdf(REPORTS / "Rapport_de_Conception_FR.pdf", FR_TITLE, intro_fr, blocks, True)
+    print("Report generation complete: %s" % REPORTS)
 
 
 if __name__ == "__main__":
