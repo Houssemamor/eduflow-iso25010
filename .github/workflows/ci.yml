@@ -1,0 +1,127 @@
+name: EduFlow CI
+
+# Run the pipeline on every push and pull request targeting the main branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least-privilege token: the workflow only needs to read the repository.
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up Node for the frontend build
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Ensure evidence directory exists
+        run: mkdir -p evidence
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        # The XML and HTML files are the raw evidence consumed by the traceability matrix.
+        run: >-
+          pytest
+          --junitxml=evidence/unit.xml
+          --cov=app
+          --cov-report=xml:evidence/coverage.xml
+          --cov-report=html:evidence/coverage
+          --cov-report=term-missing
+          tests
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-coverage-reports
+          path: |
+            evidence/unit.xml
+            evidence/coverage.xml
+            evidence/coverage/
+          if-no-files-found: warn
+
+  security-scan:
+    name: Security scan (SAST and SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Ensure evidence directory exists
+        run: mkdir -p evidence
+
+      - name: Install project and scan tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bandit pip-audit
+
+      - name: Bandit static application security testing
+        run: bandit -r app -f txt -o evidence/bandit.txt
+
+      - name: pip-audit software composition analysis
+        run: pip-audit -r requirements.txt -f text -o evidence/pip-audit.txt
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            evidence/bandit.txt
+            evidence/pip-audit.txt
+          if-no-files-found: warn
+
+  portability:
+    name: Portability check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Ensure evidence directory exists
+        run: mkdir -p evidence
+
+      - name: Validate Docker Compose configuration
+        # 'docker compose config' resolves and validates the file without starting services.
+        run: docker compose config > evidence/docker-compose-config.txt
+
+      - name: Upload portability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portability-report
+          path: evidence/docker-compose-config.txt
+          if-no-files-found: warn

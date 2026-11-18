@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local databases
+*.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Evidence and reports are versioned (real execution output), but keep large binaries out.
+evidence/**/*.log
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
