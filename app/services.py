@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, Course, Enrollment, Session, Tag, User, course_tags, utcnow
@@ -347,7 +348,13 @@ def create_enrollment(db: Session, actor: User, data: Any) -> Enrollment:
         session_id=None if session is None else session.id, status="pending",
     )
     db.add(enrollment)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # The unique(user, course) constraint is the final guard against a
+        # concurrent double-submit that passed the earlier existence check.
+        db.rollback()
+        raise BusinessRuleError("Already enrolled in this course", 409) from exc
     write_audit(db, actor.id, "enrollment.create", "enrollment", enrollment.id)
     db.commit()
     return enrollment
