@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="25.347" timestamp="2026-11-19T01:23:36.383602+01:00" hostname="192-168-SH-AD"><testcase classname="tests.e2e.test_dashboard_simulation" name="test_three_role_dashboard_tour" time="25.253" /></testsuite></testsuites>

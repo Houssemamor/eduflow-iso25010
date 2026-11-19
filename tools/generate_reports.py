@@ -168,7 +168,8 @@ def results_summary() -> list[tuple[str, str]]:
     unit = junit_counts("unit.xml")
     api = junit_counts("api.xml")
     e2e = junit_counts("e2e.xml")
-    total = unit[0] + api[0] + e2e[0]
+    simulation = junit_counts("simulation.xml")
+    total = unit[0] + api[0] + e2e[0] + simulation[0]
     bandit = evidence_text("bandit.txt")
     bandit_clean = "No issues identified" in bandit
     pip_audit = evidence_text("pip-audit.txt")
@@ -190,6 +191,7 @@ def results_summary() -> list[tuple[str, str]]:
         ("Unit tests", f"{unit[0]} passed, {unit[1]} failed (evidence/unit.xml)"),
         ("API, integration, reliability, fuzz, smoke", f"{api[0]} passed, {api[1]} failed (evidence/api.xml)"),
         ("E2E + accessibility (Chromium, Firefox)", f"{e2e[0]} passed, {e2e[1]} failed (evidence/e2e.xml)"),
+        ("Dashboard simulation (real Edge via CDP)", f"{simulation[0]} passed, {simulation[1]} failed (evidence/simulation.xml)"),
         ("Total automated tests", f"{total} passed, 0 failed"),
         ("Coverage (pytest-cov)", f"{coverage_percent():.0f}% line coverage (target >= 80%)"),
         ("Bandit SAST", "No issues identified" if bandit_clean else "Findings - see evidence/bandit.txt"),
@@ -203,7 +205,7 @@ def results_summary() -> list[tuple[str, str]]:
 CHART_CAPTIONS = [
     ("performance_p95.png", "Figure 1: Locust p95 response time per endpoint with the 500 ms target (20 users)."),
     ("coverage_by_module.png", "Figure 2: pytest-cov line coverage per application module."),
-    ("tests_by_layer.png", "Figure 3: number of automated tests executed per layer."),
+    ("tests_by_layer.png", "Figure 3: number of automated tests executed, grouped by the tool that implements them (pytest, Hypothesis, Playwright, axe-core, CDP simulation)."),
 ]
 
 

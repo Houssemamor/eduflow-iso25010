@@ -25,7 +25,7 @@ characteristics in section 6.
 
 | Requirement ID | Description | Type | Test(s) | Tool(s) | Evidence path | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Q1 | Functional suitability: all section 4 features implemented and accurate. | quality | full unit, integration, API, fuzz, smoke and E2E suites | pytest, Hypothesis, Playwright | evidence/unit.xml, evidence/api.xml, evidence/e2e.xml | Passed - 49 tests executed |
+| Q1 | Functional suitability: all section 4 features implemented and accurate. | quality | full unit, integration, API, fuzz, smoke, E2E and CDP simulation suites | pytest, Hypothesis, Playwright, axe-core, automation_engine | evidence/unit.xml, evidence/api.xml, evidence/e2e.xml, evidence/simulation.xml | Passed - 50 tests executed (34 pytest, 6 Hypothesis, 8 Playwright, 1 axe-core, 1 CDP simulation) |
 | Q2 | Performance efficiency: response time measured under load (target below 500 ms at 20 concurrent users). | quality | Locust, 20 users, 30 s, 940 requests, CSV + text output | Locust | evidence/performance.txt, evidence/perf_stats.csv, evidence/charts/performance_p95.png | Passed - aggregated p50 7 ms, p95 17 ms; login p50 76 ms, p95 97 ms |
 | Q3 | Compatibility: runs on at least two browsers. | quality | 4 journeys x Chromium + Firefox | Playwright | evidence/e2e.xml | Passed - 8/8 browser tests |
 | Q4 | Usability: validated user journeys and automated WCAG A/AA accessibility scan. | quality | Playwright journeys + axe-core scan of login and dashboard | Playwright, axe-core | evidence/e2e.xml, evidence/axe.json, evidence/e2e-*.png | Passed after fixing two color-contrast findings; 0 violations at final run |
@@ -52,6 +52,7 @@ characteristics in section 6.
 | evidence/unit.xml | pytest | Business-rule test results |
 | evidence/api.xml | pytest + httpx + Hypothesis | API, integration, reliability, fuzz and smoke results |
 | evidence/e2e.xml | Playwright | Cross-browser and accessibility results |
+| evidence/simulation.xml | Playwright CDP | Real-browser three-role dashboard simulation result |
 | evidence/e2e-*.png | Playwright | Screenshots of verified journeys |
 | evidence/tests.xml | pytest | Combined non-browser suite result |
 | evidence/performance.txt, evidence/perf_*.csv | Locust | Load metrics and response-time percentiles |

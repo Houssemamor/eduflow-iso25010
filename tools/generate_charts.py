@@ -95,27 +95,51 @@ def coverage_chart():
     return total
 
 
-def test_counts_chart():
-    sources = {
-        "Unit": "unit.xml",
-        "API + integration\n+ reliability + fuzz + smoke": "api.xml",
-        "E2E (2 browsers\n+ accessibility)": "e2e.xml",
-    }
-    counts = []
-    for label, filename in sources.items():
-        root = ET.parse(os.path.join(EVIDENCE, filename)).getroot()
-        suite = root if root.tag == "testsuite" else root.find("testsuite")
-        counts.append((label, int(suite.attrib["tests"])))
+def _test_cases(name: str) -> list[tuple[str, str]]:
+    root = ET.parse(os.path.join(EVIDENCE, name)).getroot()
+    suite = root if root.tag == "testsuite" else root.find("testsuite")
+    return [
+        (case.attrib["classname"], case.attrib["name"])
+        for case in suite.findall("testcase")
+    ]
 
-    fig, axis = plt.subplots(figsize=(8, 3.8))
+
+def tests_by_tool() -> list[tuple[str, int]]:
+    """Count executed tests grouped by the tool that implements them."""
+    unit = _test_cases("unit.xml")
+    api = _test_cases("api.xml")
+    e2e = _test_cases("e2e.xml")
+    simulation = _test_cases("simulation.xml")
+
+    def in_prefix(cases, prefix):
+        return sum(1 for classname, _ in cases if classname.startswith(prefix))
+
+    return [
+        ("pytest", len(unit)
+         + in_prefix(api, "tests.api.")
+         + in_prefix(api, "tests.integration.")
+         + in_prefix(api, "tests.reliability.")
+         + in_prefix(api, "tests.smoke.")),
+        ("Hypothesis", in_prefix(api, "tests.fuzz.")),
+        ("Playwright", in_prefix(e2e, "tests.e2e.test_ui")),
+        ("axe-core", in_prefix(e2e, "tests.e2e.test_accessibility")),
+        ("CDP simulation", len(simulation)),
+    ]
+
+
+def test_counts_chart():
+    counts = tests_by_tool()
+    total = sum(value for _, value in counts)
+
+    fig, axis = plt.subplots(figsize=(8.5, 4.0))
     bars = axis.bar([label for label, _ in counts], [value for _, value in counts],
                     color=COLORS["primary"], width=0.55)
     for bar, (_, value) in zip(bars, counts):
-        axis.text(bar.get_x() + bar.get_width() / 2, value + 0.4, str(value),
+        axis.text(bar.get_x() + bar.get_width() / 2, value + 0.5, str(value),
                   ha="center", fontsize=10, color=COLORS["text"])
-    axis.set_ylabel("Tests passed")
-    axis.set_title("Automated tests executed by layer")
-    axis.set_ylim(0, max(value for _, value in counts) + 5)
+    axis.set_ylabel("Automated tests passed")
+    axis.set_title("Automated tests executed by tool (total %d)" % total)
+    axis.set_ylim(0, max(value for _, value in counts) + 6)
     style(axis)
     fig.tight_layout()
     fig.savefig(os.path.join(CHARTS, "tests_by_layer.png"), dpi=150)
