@@ -83,9 +83,15 @@ raw evidence are in `evidence/charts/` and are embedded in the EN/FR PDF reports
   coverage of at least 80%.
 - **Test / tool:** pytest-cov coverage run, Bandit, module-level coverage chart.
 - **Evidence:** `evidence/coverage/index.html`, `evidence/coverage.xml`,
-  `evidence/charts/coverage_by_module.png`, `evidence/bandit.txt`.
+  `evidence/charts/coverage_by_module.png`, `evidence/complexity.txt`,
+  `evidence/bandit.txt`.
 - **Result:** Passed. Total line coverage 88% (607 statements, 73 missed). Code
   is split into config, db, models, schemas, security, services and API layers.
+  Radon analysed 93 blocks: average cyclomatic complexity **A (2.15)** and an
+  **A** maintainability index for every module. The two highest-complexity
+  functions in `services.py` are `transition_enrollment` (C, 17) and
+  `get_dashboard` (C, 12); both are covered by business-rule and integration
+  tests, and the raw ranking is retained in the evidence for review.
 
 ## Q8 - Portability
 
@@ -150,6 +156,17 @@ process execution, so the harness runs locally only.
 A zero-finding result means "none found by that tool's rule set at that time",
 not a proof that no defect exists. Every result is backed by raw output in
 `evidence/`.
+
+## Soutenance demonstration (cahier des charges deliverable)
+
+The mandatory live demonstration is defined in `docs/demo.md`: start the stack,
+walk through the three roles, then execute two test layers live - API/integration
+(pytest + httpx) and browser E2E (Playwright, Chromium + Firefox).
+
+Rehearsal evidence: `evidence/demo-check.txt` records a successful run on
+2026-11-19: stack healthy, `/health` 200, **16 passed** for layer 1 and
+**8 passed** for layer 2, both with exit code 0. The script
+`tools/demo_check.ps1` reproduces this check and lists optional extra layers.
 
 ## Graphs
 

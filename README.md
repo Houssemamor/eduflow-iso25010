@@ -50,6 +50,7 @@ and troubleshooting.
 - `docs/traceability.md` - requirement to test to evidence matrix.
 - `docs/iso25010-conformance.md` - per-characteristic quality requirements and evidence.
 - `docs/install.md` - reproducible install and run guide.
+- `docs/demo.md` - soutenance checklist: three role walkthroughs plus the two test layers demonstrated live; rehearsal output in `evidence/demo-check.txt`.
 
 ## Test commands
 
@@ -85,6 +86,14 @@ docker run --rm -v "<absolute path>/evidence:/zap/wrk:rw" \
 # Validate and exercise the container definition
 docker compose config > evidence/docker-compose-config.txt
 docker compose up --build -d
+
+# Complexity and maintainability metrics
+python -m radon cc app -a -s > evidence/complexity.txt
+python -m radon mi app >> evidence/complexity.txt
+python -m radon raw app >> evidence/complexity.txt
+
+# Rehearse the soutenance (app + two live test layers)
+powershell -File tools/demo_check.ps1
 
 # Regenerate charts and the EN/FR reports from the evidence
 python tools/generate_charts.py

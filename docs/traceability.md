@@ -31,7 +31,7 @@ characteristics in section 6.
 | Q4 | Usability: validated user journeys and automated WCAG A/AA accessibility scan. | quality | Playwright journeys + axe-core scan of login and dashboard | Playwright, axe-core | evidence/e2e.xml, evidence/axe.json, evidence/e2e-*.png | Passed after fixing two color-contrast findings; 0 violations at final run |
 | Q5 | Reliability: stable behavior on error, no data loss, transactions roll back, concurrent submits do not duplicate data. | quality | `tests/reliability/test_reliability.py` (3 scenarios) + `test_concurrency.py` | pytest | evidence/api.xml | Passed - 4 reliability/concurrency scenarios |
 | Q6 | Security: robust authentication, RBAC, no known vulnerabilities across OWASP Top 10. | quality | Bandit SAST, pip-audit SCA, npm audit frontend SCA, OWASP ZAP DAST, negative RBAC tests | Bandit, pip-audit, npm audit, ZAP, pytest | evidence/bandit.txt, evidence/pip-audit.txt, evidence/npm-audit.txt, evidence/zap.html, evidence/zap.json, evidence/api.xml | Passed - 0 SAST issues, 0 Python CVEs, 0 npm vulnerabilities, 0 DAST failures (1 informational alert) |
-| Q7 | Maintainability: layered code and measured test coverage (target at least 80%). | quality | coverage run + Bandit | pytest-cov, Bandit | evidence/coverage/index.html, evidence/coverage.xml, evidence/charts/coverage_by_module.png, evidence/bandit.txt | Passed - 88% coverage |
+| Q7 | Maintainability: layered code and measured test coverage (target at least 80%). | quality | coverage run + Bandit | pytest-cov, Bandit | evidence/coverage/index.html, evidence/coverage.xml, evidence/charts/coverage_by_module.png, evidence/complexity.txt, evidence/bandit.txt | Passed - 88% coverage; average cyclomatic complexity A (2.15) |
 | Q8 | Portability: reproducible installation via container definition. | quality | Compose config validation plus live stack deployment and API smoke checks | Docker Compose | evidence/docker-compose-config.txt, evidence/docker-compose-up.txt, evidence/docker-stack-verification.txt | Passed - all three containers healthy; API and UI respond |
 
 ## Additional test layers beyond the specification
@@ -65,8 +65,16 @@ characteristics in section 6.
 | evidence/dashboard_tour_*.png | CDP simulation | One screenshot per role and window |
 | evidence/coverage/index.html, evidence/coverage.xml | pytest-cov | Coverage reports |
 | evidence/charts/*.png | matplotlib | Charts embedded in the PDF reports |
+| evidence/complexity.txt | radon | Cyclomatic complexity, maintainability index and raw size metrics |
+| evidence/demo-check.txt | tools/demo_check.ps1 | Rehearsed soutenance: stack health + two live test layers |
 | evidence/docker-compose-config.txt | `docker compose config` | Resolved Compose configuration |
 | evidence/docker-compose-up.txt, evidence/docker-stack-verification.txt | Docker Compose + HTTP checks | Live container deployment proof |
+
+## Soutenance deliverable
+
+| Deliverable | Procedure | Evidence | Status |
+| --- | --- | --- | --- |
+| Live demo of the application and at least two test layers running | `docs/demo.md`, `tools/demo_check.ps1` | `evidence/demo-check.txt` | Rehearsed: 16 API/integration tests + 8 browser E2E tests passed live, exit code 0. |
 
 A requirement is considered demonstrated only when every listed evidence file
 exists and contains output from a real execution of the named tool. Unavailable

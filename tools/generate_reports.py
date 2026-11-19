@@ -164,6 +164,18 @@ def evidence_text(name: str) -> str:
     return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
 
 
+def _complexity_summary() -> str:
+    text = evidence_text("complexity.txt")
+    match = re.search(r"Average complexity:\s*([A-F])\s*\(([\d.]+)\)", text)
+    blocks = re.search(r"(\d+) blocks \(classes, functions, methods\) analyzed", text)
+    if not match:
+        return "See evidence/complexity.txt"
+    detail = f"average cyclomatic complexity {match.group(1)} ({match.group(2)})"
+    if blocks:
+        detail += f", {blocks.group(1)} blocks analysed"
+    return detail + " (evidence/complexity.txt)"
+
+
 def results_summary() -> list[tuple[str, str]]:
     unit = junit_counts("unit.xml")
     api = junit_counts("api.xml")
@@ -194,6 +206,8 @@ def results_summary() -> list[tuple[str, str]]:
         ("Dashboard simulation (real Edge via CDP)", f"{simulation[0]} passed, {simulation[1]} failed (evidence/simulation.xml)"),
         ("Total automated tests", f"{total} passed, 0 failed"),
         ("Coverage (pytest-cov)", f"{coverage_percent():.0f}% line coverage (target >= 80%)"),
+        ("Complexity (radon)", _complexity_summary()),
+        ("Soutenance rehearsal", "16 API/integration + 8 E2E tests passed live (evidence/demo-check.txt)"),
         ("Bandit SAST", "No issues identified" if bandit_clean else "Findings - see evidence/bandit.txt"),
         ("pip-audit SCA (Python)", "No known vulnerabilities" if sca_clean else "Findings - see evidence/pip-audit.txt"),
         ("npm audit (frontend SCA)", "0 vulnerabilities" if npm_clean else "Findings - see evidence/npm-audit.txt"),

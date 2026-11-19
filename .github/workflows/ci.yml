@@ -56,6 +56,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Complexity and maintainability metrics
+        run: |
+          python -m radon cc app -a -s > evidence/complexity.txt
+          python -m radon mi app >> evidence/complexity.txt
+          python -m radon raw app >> evidence/complexity.txt
+
       - name: Frontend dependency audit
         working-directory: frontend
         run: npm audit
@@ -69,6 +75,7 @@ jobs:
             evidence/unit.xml
             evidence/coverage.xml
             evidence/coverage/
+            evidence/complexity.txt
           if-no-files-found: warn
 
   security-scan:
