@@ -126,6 +126,31 @@ All nine screenshots are reproduced in **Part II** of both EN and FR reports.
 The browser is not launched from an HTTP endpoint: that would expose remote
 process execution, so the harness runs locally only.
 
+## Test toolkit: tool, purpose and result meaning
+
+| Test / check | Tool | What it verifies | Meaning of the recorded result |
+| --- | --- | --- | --- |
+| Unit business rules | pytest (`tests/unit/`) | BR1..BR8 in the service layer | 9 passed, 0 failed: each rule and its negative case are enforced. |
+| API contract | pytest + httpx (`tests/api/`) | HTTP codes, JSON shape, 401/403/404/422 | 8 passed: documented contract and RBAC denials hold. |
+| Integration flows | pytest + httpx (`tests/integration/`) | CRUD, workflow, dashboard, audit with the database | 8 passed: server state stays consistent across flows. |
+| Reliability | pytest (`tests/reliability/`) | Duplicate/rejected/concurrent requests, no secret logging | 4 passed: no corruption on error or race; the 409 replaces a duplicate row. |
+| Fuzz / property | Hypothesis (`tests/fuzz/`) | Generated invalid inputs and hash round-trips | 6 tests, 300+ examples, 0 failures: no crash or HTTP 500. |
+| Smoke | pytest (`tests/smoke/`) | Demo logins and core endpoints after deployment | 5 passed: the deployed app is usable. |
+| E2E | Playwright, Chromium + Firefox | Four user journeys in two engines | 8 passed: UI works in both browsers. |
+| Accessibility | axe-core via Playwright | WCAG A/AA violations on login and dashboard | 0 violations at final run after two contrast fixes; configured rule set only. |
+| Dashboard simulation | automation_engine + Playwright CDP | Real Edge visiting the three roles' dashboards/windows | 1 passed, 9 screenshots, 0 page errors: role navigation and RBAC are correct in a real browser. |
+| Performance | Locust, 20 users, 30 s | Latency under load | 940 requests, 0 failures; p50 7 ms, p95 17 ms, login p95 97 ms: below the 500 ms target; p95 = 95% of requests were faster. |
+| Coverage | pytest-cov | Executed application lines | 88% >= 80% target: most paths exercised. |
+| SAST | Bandit | Insecure source patterns | 0 issues over 872 lines: none found by this rule set. |
+| Python SCA | pip-audit | CVEs in pinned Python packages | 0 known vulnerabilities after the pytest upgrade. |
+| Frontend SCA | npm audit | CVEs in npm packages | 0 vulnerabilities after the Vite/react-router upgrade. |
+| DAST | OWASP ZAP baseline | Live responses for injection/misconfiguration | 0 new failures, 67 passes, 1 informational alert. |
+| Portability | Docker Compose | Reproducible container install | Valid config, 3 healthy containers, API/UI HTTP 200. |
+
+A zero-finding result means "none found by that tool's rule set at that time",
+not a proof that no defect exists. Every result is backed by raw output in
+`evidence/`.
+
 ## Graphs
 
 - `evidence/charts/performance_p95.png` - p95 response time per endpoint with
