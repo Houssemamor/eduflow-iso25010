@@ -104,8 +104,8 @@ def _test_cases(name: str) -> list[tuple[str, str]]:
     ]
 
 
-def tests_by_tool() -> list[tuple[str, int]]:
-    """Count executed tests grouped by the tool that implements them."""
+def tests_by_check() -> list[tuple[str, int]]:
+    """Count executed tests grouped by test / check, matching the toolkit matrix."""
     unit = _test_cases("unit.xml")
     api = _test_cases("api.xml")
     e2e = _test_cases("e2e.xml")
@@ -115,32 +115,36 @@ def tests_by_tool() -> list[tuple[str, int]]:
         return sum(1 for classname, _ in cases if classname.startswith(prefix))
 
     return [
-        ("pytest", len(unit)
-         + in_prefix(api, "tests.api.")
-         + in_prefix(api, "tests.integration.")
-         + in_prefix(api, "tests.reliability.")
-         + in_prefix(api, "tests.smoke.")),
-        ("Hypothesis", in_prefix(api, "tests.fuzz.")),
-        ("Playwright", in_prefix(e2e, "tests.e2e.test_ui")),
-        ("axe-core", in_prefix(e2e, "tests.e2e.test_accessibility")),
-        ("CDP simulation", len(simulation)),
+        ("Unit - business rules", len(unit)),
+        ("API contract", in_prefix(api, "tests.api.")),
+        ("Integration flows", in_prefix(api, "tests.integration.")),
+        ("Reliability", in_prefix(api, "tests.reliability.")),
+        ("Fuzz / property", in_prefix(api, "tests.fuzz.")),
+        ("Smoke", in_prefix(api, "tests.smoke.")),
+        ("E2E journeys", in_prefix(e2e, "tests.e2e.test_ui")),
+        ("Accessibility", in_prefix(e2e, "tests.e2e.test_accessibility")),
+        ("Dashboard simulation", len(simulation)),
     ]
 
 
 def test_counts_chart():
-    counts = tests_by_tool()
+    counts = tests_by_check()
     total = sum(value for _, value in counts)
 
-    fig, axis = plt.subplots(figsize=(8.5, 4.0))
-    bars = axis.bar([label for label, _ in counts], [value for _, value in counts],
-                    color=COLORS["primary"], width=0.55)
-    for bar, (_, value) in zip(bars, counts):
-        axis.text(bar.get_x() + bar.get_width() / 2, value + 0.5, str(value),
-                  ha="center", fontsize=10, color=COLORS["text"])
-    axis.set_ylabel("Automated tests passed")
-    axis.set_title("Automated tests executed by tool (total %d)" % total)
-    axis.set_ylim(0, max(value for _, value in counts) + 6)
+    fig, axis = plt.subplots(figsize=(9, 5.2))
+    labels = [label for label, _ in counts]
+    values = [value for _, value in counts]
+    axis.barh(labels, values, color=COLORS["primary"], height=0.6)
+    for index, value in enumerate(values):
+        axis.text(value + 0.3, index, str(value), va="center", fontsize=9,
+                  color=COLORS["text"])
+    axis.set_xlabel("Automated tests passed")
+    axis.set_title("Automated tests executed by test / check (total %d)" % total)
+    axis.set_xlim(0, max(values) + 4)
     style(axis)
+    axis.grid(axis="x", color=COLORS["grid"], linewidth=0.8)
+    axis.grid(axis="y", visible=False)
+    axis.invert_yaxis()
     fig.tight_layout()
     fig.savefig(os.path.join(CHARTS, "tests_by_layer.png"), dpi=150)
     plt.close(fig)

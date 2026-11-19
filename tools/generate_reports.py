@@ -205,7 +205,7 @@ def results_summary() -> list[tuple[str, str]]:
 CHART_CAPTIONS = [
     ("performance_p95.png", "Figure 1: Locust p95 response time per endpoint with the 500 ms target (20 users)."),
     ("coverage_by_module.png", "Figure 2: pytest-cov line coverage per application module."),
-    ("tests_by_layer.png", "Figure 3: number of automated tests executed, grouped by the tool that implements them (pytest, Hypothesis, Playwright, axe-core, CDP simulation)."),
+    ("tests_by_layer.png", "Figure 3: number of automated tests executed by test / check: unit, API contract, integration, reliability, fuzz, smoke, E2E, accessibility and dashboard simulation."),
 ]
 
 
